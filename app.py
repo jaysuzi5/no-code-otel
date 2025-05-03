@@ -56,19 +56,22 @@ def connect_to_database():
 
 def get_latest_weather():
     conn = connect_to_database()
+    conn.autocommit = False  # REF CURSOR requires a transaction
     cur = conn.cursor()
 
     n = random.randint(0, 999)
     cursor_name = 'weather_cursor'
 
     try:
-        #Call the stored procedure
+        # CALL the procedure (not SELECT!)
         cur.callproc('get_latest_weather', [n, cursor_name])
 
-        #Fetch results from the cursor
+        # Now fetch from the named cursor
         cur.execute(f'FETCH ALL FROM {cursor_name};')
         rows = cur.fetchall()
         column_names = [desc[0] for desc in cur.description]
+
+        # Clean up
         cur.execute(f'CLOSE {cursor_name};')
         return [dict(zip(column_names, row)) for row in rows]
 
