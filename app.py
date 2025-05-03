@@ -79,4 +79,5 @@ def get_latest_weather():
 
 @app.route("/latest-weather")
 def latest_weather():
+    logging.info("Received request for latest weather.")
     return jsonify(get_latest_weather())
