@@ -2,6 +2,7 @@ from flask import Flask, jsonify
 import psycopg2
 import logging
 import os
+import random
 
 app = Flask(__name__)
 
@@ -56,12 +57,24 @@ def connect_to_database():
 def get_latest_weather():
     conn = connect_to_database()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM weather_current ORDER BY collection_time DESC LIMIT 1;")
-    row = cur.fetchone()
-    column_names = [desc[0] for desc in cur.description]
-    cur.close()
-    conn.close()
-    return dict(zip(column_names, row))
+
+    n = random.randint(0, 999)
+    cursor_name = 'weather_cursor'
+
+    try:
+        #Call the stored procedure
+        cur.callproc('get_latest_weather', [n, cursor_name])
+
+        #Fetch results from the cursor
+        cur.execute(f'FETCH ALL FROM {cursor_name};')
+        rows = cur.fetchall()
+        column_names = [desc[0] for desc in cur.description]
+        cur.execute(f'CLOSE {cursor_name};')
+        return [dict(zip(column_names, row)) for row in rows]
+
+    finally:
+        cur.close()
+        conn.close()
 
 
 @app.route("/latest-weather")
