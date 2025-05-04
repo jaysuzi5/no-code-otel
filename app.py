@@ -64,7 +64,12 @@ def connect_to_database():
 
 def publish_to_elastic(records):
     try:
-        es = Elasticsearch("http://elasticsearch-master.elasticsearch.svc.cluster.local:9200")
+        elastic_user = get_env_variable("ELASTIC_USER")
+        elastic_password = get_env_variable("ELASTIC_PASSWORD")
+        es = Elasticsearch("https://elasticsearch-master.elasticsearch.svc.cluster.local:9200",
+            basic_auth=(elastic_user, elastic_password),
+            verify_certs=False  # for self-signed certs only
+        )
 
         document = {
             "id": str(uuid.uuid4()),
