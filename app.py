@@ -6,12 +6,16 @@ import os
 import random
 import uuid
 from opentelemetry.instrumentation.confluent_kafka import ConfluentKafkaInstrumentor
+from opentelemetry.trace import get_tracer_provider
 from datetime import datetime
 from opentelemetry.instrumentation.elasticsearch import ElasticsearchInstrumentor
 from elasticsearch import Elasticsearch
 
 ElasticsearchInstrumentor().instrument()
 ConfluentKafkaInstrumentor().instrument()
+inst = ConfluentKafkaInstrumentor()
+tracer_provider = get_tracer_provider()
+
 
 app = Flask(__name__)
 
@@ -90,6 +94,7 @@ def publish_event(records):
         'bootstrap.servers': 'kafka.kafka.svc.cluster.local:9092'
     }
     producer = Producer(conf)
+    producer = inst.instrument_producer(producer, tracer_provider)
     topic = "test"
 
     def delivery_report(err, msg):
