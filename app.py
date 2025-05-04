@@ -5,7 +5,9 @@ import logging
 import os
 import random
 import uuid
+from opentelemetry.instrumentation.confluent_kafka import ConfluentKafkaInstrumentor
 
+ConfluentKafkaInstrumentor().instrument()
 
 app = Flask(__name__)
 
