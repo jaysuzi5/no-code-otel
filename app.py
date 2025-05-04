@@ -6,7 +6,11 @@ import os
 import random
 import uuid
 from opentelemetry.instrumentation.confluent_kafka import ConfluentKafkaInstrumentor
+from datetime import datetime
+from opentelemetry.instrumentation.elasticsearch import ElasticsearchInstrumentor
+from elasticsearch import Elasticsearch
 
+ElasticsearchInstrumentor().instrument()
 ConfluentKafkaInstrumentor().instrument()
 
 app = Flask(__name__)
@@ -58,6 +62,23 @@ def connect_to_database():
         logging.error(f"Error connecting to the database: {e}")
         return None
 
+def publish_to_elastic(records):
+    try:
+        es = Elasticsearch("http://elasticsearch-master.elasticsearch.svc.cluster.local:9200")
+
+        document = {
+            "id": str(uuid.uuid4()),
+            "records": records,
+            "content": "Weather Data Pulled From Database",
+            "timestamp": datetime.utcnow().isoformat()  # or use datetime.now() for local time
+        }
+
+        # Index the document
+        response = es.index(index="weather-inquires", id=document["id"], document=document)
+        print(response)
+    except Exception as ex:
+        logging.error(f"Error publishing to Elasticsearch: {ex}")
+
 
 def publish_event(records):
     conf = {
@@ -85,7 +106,7 @@ def publish_event(records):
 
 def get_latest_weather():
     try:
-        n = random.randint(0, 999)
+        n = random.randint(-50, 1050)
         conn = connect_to_database()
         cur = conn.cursor()
 
@@ -94,6 +115,7 @@ def get_latest_weather():
         column_names = [desc[0] for desc in cur.description]
         records = len(results)
         publish_event(records)
+        publish_to_elastic(records)
         return [dict(zip(column_names, row)) for row in results]
     finally:
         cur.close()

@@ -1,8 +1,10 @@
 Flask~=3.1.0
 confluent-kafka~=2.10.0
 psycopg2-binary~=2.9.10
+elasticsearch
 opentelemetry-distro
 opentelemetry-exporter-otlp
 opentelemetry-instrumentation-flask
 opentelemetry-instrumentation-psycopg2
 opentelemetry-instrumentation-confluent-kafka
+opentelemetry-instrumentation-elasticsearch
