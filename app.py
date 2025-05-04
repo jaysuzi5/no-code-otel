@@ -59,16 +59,21 @@ def get_latest_weather():
         n = random.randint(0, 999)
         conn = connect_to_database()
         cur = conn.cursor()
-        cur.execute("CALL get_latest_weather(%s)", (n,))
+
+        cur.execute("CALL public.get_latest_weather(%s)", (n,))
+        conn.commit()
         ref_cursor = cur.fetchone()[0]
         cur.execute(f"FETCH ALL FROM \"{ref_cursor}\"")
         results = cur.fetchall()
         column_names = [desc[0] for desc in cur.description]
 
         return [dict(zip(column_names, row)) for row in results]
+    except Exception as e:
+        print(f"Database error: {e}")
+        return None
     finally:
-        cur.close()
-        conn.close()
+        if 'cur' in locals(): cur.close()
+        if 'conn' in locals(): conn.close()
 
 
 @app.route("/latest-weather")
