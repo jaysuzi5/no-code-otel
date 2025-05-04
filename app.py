@@ -1,8 +1,11 @@
 from flask import Flask, jsonify
 import psycopg2
+from confluent_kafka import Producer
 import logging
 import os
 import random
+import uuid
+
 
 app = Flask(__name__)
 
@@ -54,6 +57,30 @@ def connect_to_database():
         return None
 
 
+def publish_event(records):
+    conf = {
+        'bootstrap.servers': 'kafka.kafka.svc.cluster.local:9092'
+    }
+    producer = Producer(conf)
+    topic = "test"
+
+    def delivery_report(err, msg):
+        if err is not None:
+            logging.error(f"Delivery failed: {err}")
+        else:
+            logging.info(f"Delivered message to {msg.topic()} [{msg.partition()}]")
+
+    message = {
+        "id": str(uuid.uuid4()),
+        "records": records,
+        "content": "Weather Data Pulled From Database"
+    }
+    producer.produce(topic, value=str(message), callback=delivery_report)
+    producer.poll(0)
+
+    producer.flush()
+
+
 def get_latest_weather():
     try:
         n = random.randint(0, 999)
@@ -63,7 +90,8 @@ def get_latest_weather():
         cur.execute("SELECT * FROM get_latest_weather(%s)", (n,))
         results = cur.fetchall()
         column_names = [desc[0] for desc in cur.description]
-
+        records = len(results)
+        publish_event(records)
         return [dict(zip(column_names, row)) for row in results]
     finally:
         cur.close()
