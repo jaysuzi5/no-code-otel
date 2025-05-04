@@ -59,11 +59,12 @@ def get_latest_weather():
         n = random.randint(0, 999)
         conn = connect_to_database()
         cur = conn.cursor()
-        cur.callproc('get_latest_weather', (n,))
+        cur.execute("CALL get_latest_weather(%s)", (n,))
         ref_cursor = cur.fetchone()[0]
         cur.execute(f"FETCH ALL FROM \"{ref_cursor}\"")
         results = cur.fetchall()
         column_names = [desc[0] for desc in cur.description]
+
         return [dict(zip(column_names, row)) for row in results]
     finally:
         cur.close()
