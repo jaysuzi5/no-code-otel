@@ -13,13 +13,14 @@ from opentelemetry.instrumentation.confluent_kafka import ConfluentKafkaInstrume
 from opentelemetry.trace import get_tracer_provider
 from opentelemetry.instrumentation.pymongo import PymongoInstrumentor
 from opentelemetry.instrumentation.elasticsearch import ElasticsearchInstrumentor
-
 ElasticsearchInstrumentor().instrument()
 ConfluentKafkaInstrumentor().instrument()
 PymongoInstrumentor().instrument()
 inst = ConfluentKafkaInstrumentor()
 tracer_provider = get_tracer_provider()
 
+log_level = os.getenv("APP_LOG_LEVEL", "INFO").upper()
+logging.basicConfig(level=getattr(logging, log_level, logging.INFO))
 
 app = Flask(__name__)
 
