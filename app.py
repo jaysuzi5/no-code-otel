@@ -91,7 +91,7 @@ def publish_to_mongodb(records):
         collection.insert_one(document)
         logging.info(f"Published to MongoDB: {document}")
     except Exception as ex:
-        logging.error(f"Error publishing to MongoDB: {ex}")
+        logging.error(f"Error publishing to MongoDB ({mongodb_user}):({mongodb_password}): {ex}")
 
 
 def publish_to_elastic(records):
