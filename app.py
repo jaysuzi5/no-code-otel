@@ -154,6 +154,7 @@ def get_latest_weather():
         records = len(results)
         publish_event(records)
         publish_to_elastic(records)
+        publish_to_mongodb(records)
         return [dict(zip(column_names, row)) for row in results]
     finally:
         cur.close()
