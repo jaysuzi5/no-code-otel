@@ -1,18 +1,22 @@
+from datetime import datetime
 from flask import Flask, jsonify
-import psycopg2
-from confluent_kafka import Producer
 import logging
 import os
 import random
 import uuid
+import psycopg2
+from confluent_kafka import Producer
+from elasticsearch import Elasticsearch
+from pymongo import MongoClient
+
 from opentelemetry.instrumentation.confluent_kafka import ConfluentKafkaInstrumentor
 from opentelemetry.trace import get_tracer_provider
-from datetime import datetime
+from opentelemetry.instrumentation.pymongo import PymongoInstrumentor
 from opentelemetry.instrumentation.elasticsearch import ElasticsearchInstrumentor
-from elasticsearch import Elasticsearch
 
 ElasticsearchInstrumentor().instrument()
 ConfluentKafkaInstrumentor().instrument()
+PymongoInstrumentor().instrument()
 inst = ConfluentKafkaInstrumentor()
 tracer_provider = get_tracer_provider()
 
@@ -66,6 +70,30 @@ def connect_to_database():
         logging.error(f"Error connecting to the database: {e}")
         return None
 
+def publish_to_mongodb(records):
+    try:
+        mongodb_user = get_env_variable("MONGODB_USER")
+        mongodb_password = get_env_variable("MONGODB_PASSWORD")
+
+        client = MongoClient(f"mongodb://{mongodb_user}:{mongodb_password}@mongodb.mongodb.svc.cluster.local:27017")
+
+        # Select your database and collection
+        db = client["local"]
+        collection = db["weather"]
+
+        document = {
+            "id": str(uuid.uuid4()),
+            "records": 42,
+            "content": "Weather Data Pulled From Database",
+            "timestamp": datetime.utcnow()
+        }
+
+        collection.insert_one(document)
+        logging.info(f"Published to Elasticsearch: {document}")
+    except Exception as ex:
+        logging.error(f"Error publishing to Elasticsearch: {ex}")
+
+
 def publish_to_elastic(records):
     try:
         elastic_user = get_env_variable("ELASTIC_USER")
@@ -84,7 +112,7 @@ def publish_to_elastic(records):
 
         # Index the document
         response = es.index(index="weather-inquires", id=document["id"], document=document)
-        print(response)
+        logging.info(f"Published to Elasticsearch: {document}")
     except Exception as ex:
         logging.error(f"Error publishing to Elasticsearch: {ex}")
 
