@@ -149,11 +149,11 @@ def publish_to_kafka(records, message, transaction_id):
         "content": message
     }
     producer.produce(topic, value=str(message), callback=delivery_report)
-    # logging.info("Published to Kafka")
+    logging.info("Published to Kafka")
     producer.poll(0)
-    # logging.info("Flushing Kafka producer...")
+    logging.info("Flushing Kafka producer...")
     producer.flush()
-    # logging.info("Kafka producer flushed.")
+    logging.info("Kafka producer flushed.")
 
 
 def get_latest_weather(n: int, transaction_id: str):
@@ -225,7 +225,7 @@ def latest_weather():
         except Exception as ex:
             return_code = 500
             payload = {"error": "Internal Server Error", "details": str(ex)}
-    response_log(transaction_id, component, return_code, payload)
+    # response_log(transaction_id, component, return_code, payload)
     return make_response(jsonify(payload), return_code)
 
 
