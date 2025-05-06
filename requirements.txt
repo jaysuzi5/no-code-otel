@@ -11,3 +11,5 @@ opentelemetry-instrumentation-psycopg2
 opentelemetry-instrumentation-confluent-kafka
 opentelemetry-instrumentation-elasticsearch
 opentelemetry-instrumentation-pymongo
+opentelemetry-instrumentation-requests
+opentelemetry-instrumentation-system-metrics

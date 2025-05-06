@@ -17,11 +17,39 @@ from opentelemetry.instrumentation.confluent_kafka import ConfluentKafkaInstrume
 from opentelemetry.trace import get_tracer_provider
 from opentelemetry.instrumentation.pymongo import PymongoInstrumentor
 from opentelemetry.instrumentation.elasticsearch import ElasticsearchInstrumentor
+from opentelemetry.instrumentation.requests import RequestsInstrumentor
 ElasticsearchInstrumentor().instrument()
 PymongoInstrumentor().instrument()
 inst = ConfluentKafkaInstrumentor()
 tracer_provider = get_tracer_provider()
+RequestsInstrumentor().instrument()
 # End of OpenTelemetry Instrumentation
+
+# System Performance
+from opentelemetry.metrics import set_meter_provider
+from opentelemetry.instrumentation.system_metrics import SystemMetricsInstrumentor
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import ConsoleMetricExporter, PeriodicExportingMetricReader
+
+exporter = ConsoleMetricExporter()
+
+set_meter_provider(MeterProvider([PeriodicExportingMetricReader(exporter)]))
+SystemMetricsInstrumentor().instrument()
+
+# metrics are collected asynchronously
+input("...")
+
+# to configure custom metrics
+configuration = {
+    "system.memory.usage": ["used", "free", "cached"],
+    "system.cpu.time": ["idle", "user", "system", "irq"],
+    "system.network.io": ["transmit", "receive"],
+    "process.memory.usage": None,
+    "process.memory.virtual": None,
+    "process.cpu.time": ["user", "system"],
+    "process.context_switches": ["involuntary", "voluntary"],
+}
+# end of System Performance
 
 log_level = os.getenv("APP_LOG_LEVEL", "INFO").upper()
 logging.basicConfig(level=getattr(logging, log_level, logging.INFO))
@@ -121,7 +149,7 @@ def publish_to_kafka(records, message, transaction_id):
         "content": message
     }
     producer.produce(topic, value=str(message), callback=delivery_report)
-    logging.info(f"Published to Kafka: {message}")
+    logging.info("Published to Kafka")
     producer.poll(0)
     logging.info("Flushing Kafka producer...")
     producer.flush()
@@ -206,7 +234,6 @@ def random_number():
     return_code = 200
     component = 'random'
     transaction_id = request_log(component)
-    logging.info("Received request for latest weather.")
     n = random.randint(-50, 1050)
     response_log(transaction_id, component, return_code, {'n': n})
     return jsonify(n)
