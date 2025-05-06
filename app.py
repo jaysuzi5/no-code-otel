@@ -18,7 +18,6 @@ from opentelemetry.trace import get_tracer_provider
 from opentelemetry.instrumentation.pymongo import PymongoInstrumentor
 from opentelemetry.instrumentation.elasticsearch import ElasticsearchInstrumentor
 ElasticsearchInstrumentor().instrument()
-ConfluentKafkaInstrumentor().instrument()
 PymongoInstrumentor().instrument()
 inst = ConfluentKafkaInstrumentor()
 tracer_provider = get_tracer_provider()
@@ -193,8 +192,10 @@ def latest_weather():
                 n = response.json()
                 payload = get_latest_weather(n, transaction_id)
             else:
+                return_code = response.status_code
                 payload = {"error": "Error from random service", "returnCode": response.status_code}
         except Exception as ex:
+            return_code = 500
             payload = {"error": "Internal Server Error", "details": str(ex)}
     response_log(transaction_id, component, return_code, payload)
     return make_response(jsonify(payload), return_code)
