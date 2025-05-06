@@ -26,29 +26,29 @@ RequestsInstrumentor().instrument()
 # End of OpenTelemetry Instrumentation
 
 # System Performance
-from opentelemetry.metrics import set_meter_provider
-from opentelemetry.instrumentation.system_metrics import SystemMetricsInstrumentor
-from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.metrics.export import ConsoleMetricExporter, PeriodicExportingMetricReader
-
-exporter = ConsoleMetricExporter()
-
-set_meter_provider(MeterProvider([PeriodicExportingMetricReader(exporter)]))
-SystemMetricsInstrumentor().instrument()
-
-# metrics are collected asynchronously
-input("...")
-
-# to configure custom metrics
-configuration = {
-    "system.memory.usage": ["used", "free", "cached"],
-    "system.cpu.time": ["idle", "user", "system", "irq"],
-    "system.network.io": ["transmit", "receive"],
-    "process.memory.usage": None,
-    "process.memory.virtual": None,
-    "process.cpu.time": ["user", "system"],
-    "process.context_switches": ["involuntary", "voluntary"],
-}
+# from opentelemetry.metrics import set_meter_provider
+# from opentelemetry.instrumentation.system_metrics import SystemMetricsInstrumentor
+# from opentelemetry.sdk.metrics import MeterProvider
+# from opentelemetry.sdk.metrics.export import ConsoleMetricExporter, PeriodicExportingMetricReader
+#
+# exporter = ConsoleMetricExporter()
+#
+# set_meter_provider(MeterProvider([PeriodicExportingMetricReader(exporter)]))
+# SystemMetricsInstrumentor().instrument()
+#
+# # metrics are collected asynchronously
+# input("...")
+#
+# # to configure custom metrics
+# configuration = {
+#     "system.memory.usage": ["used", "free", "cached"],
+#     "system.cpu.time": ["idle", "user", "system", "irq"],
+#     "system.network.io": ["transmit", "receive"],
+#     "process.memory.usage": None,
+#     "process.memory.virtual": None,
+#     "process.cpu.time": ["user", "system"],
+#     "process.context_switches": ["involuntary", "voluntary"],
+# }
 # end of System Performance
 
 log_level = os.getenv("APP_LOG_LEVEL", "INFO").upper()
