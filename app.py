@@ -219,13 +219,14 @@ def latest_weather():
             if response.status_code == 200:
                 n = response.json()
                 payload = get_latest_weather(n, transaction_id)
+                payload = {}  # I believe this is resulting in bad logs
             else:
                 return_code = response.status_code
                 payload = {"error": "Error from random service", "returnCode": response.status_code}
         except Exception as ex:
             return_code = 500
             payload = {"error": "Internal Server Error", "details": str(ex)}
-    # response_log(transaction_id, component, return_code, payload)
+    response_log(transaction_id, component, return_code, payload)
     return make_response(jsonify(payload), return_code)
 
 
