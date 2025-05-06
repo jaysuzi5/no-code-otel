@@ -26,10 +26,10 @@ RequestsInstrumentor().instrument()
 # End of OpenTelemetry Instrumentation
 
 # System Performance
-# from opentelemetry.metrics import set_meter_provider
-# from opentelemetry.instrumentation.system_metrics import SystemMetricsInstrumentor
-# from opentelemetry.sdk.metrics import MeterProvider
-# from opentelemetry.sdk.metrics.export import ConsoleMetricExporter, PeriodicExportingMetricReader
+from opentelemetry.metrics import set_meter_provider
+from opentelemetry.instrumentation.system_metrics import SystemMetricsInstrumentor
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import ConsoleMetricExporter, PeriodicExportingMetricReader
 #
 # exporter = ConsoleMetricExporter()
 #
@@ -53,6 +53,7 @@ RequestsInstrumentor().instrument()
 
 log_level = os.getenv("APP_LOG_LEVEL", "INFO").upper()
 logging.basicConfig(level=getattr(logging, log_level, logging.INFO))
+logging.getLogger('werkzeug').setLevel(logging.ERROR)
 app = Flask(__name__)
 
 
