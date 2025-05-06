@@ -188,7 +188,7 @@ def request_log(component: str, payload:dict = None ):
     }
     if payload:
         request_message['payload'] = payload
-    # logging.info(request_message)
+    logging.info(request_message)
     return transaction_id
 
 
@@ -201,7 +201,7 @@ def response_log(transaction_id:str, component: str, return_code, payload:dict =
     }
     if payload:
         response_message['payload'] = payload
-    # logging.info(response_message)
+    logging.info(response_message)
 
 
 @app.route("/latest-weather")
