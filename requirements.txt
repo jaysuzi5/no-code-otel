@@ -1,8 +1,9 @@
-Flask~=3.1.0
-confluent-kafka~=2.10.0
-psycopg2-binary~=2.9.10
+Flask==3.1.0
+confluent-kafka==2.10.0
+psycopg2-binary==2.9.10
 elasticsearch==8.13.0
 pymongo[srv]==4.7.1
+requests==2.32.3
 opentelemetry-distro
 opentelemetry-exporter-otlp
 opentelemetry-instrumentation-flask

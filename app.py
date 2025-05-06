@@ -1,14 +1,18 @@
-from datetime import datetime
-from flask import Flask, jsonify
+from datetime import datetime, UTC
+from flask import Flask, jsonify, request, make_response
+from typing import cast
 import logging
 import os
 import random
 import uuid
 import psycopg2
+import requests
 from confluent_kafka import Producer
 from elasticsearch import Elasticsearch
 from pymongo import MongoClient
 
+
+# OpenTelemetry Instrumentation
 from opentelemetry.instrumentation.confluent_kafka import ConfluentKafkaInstrumentor
 from opentelemetry.trace import get_tracer_provider
 from opentelemetry.instrumentation.pymongo import PymongoInstrumentor
@@ -18,28 +22,14 @@ ConfluentKafkaInstrumentor().instrument()
 PymongoInstrumentor().instrument()
 inst = ConfluentKafkaInstrumentor()
 tracer_provider = get_tracer_provider()
+# End of OpenTelemetry Instrumentation
 
 log_level = os.getenv("APP_LOG_LEVEL", "INFO").upper()
 logging.basicConfig(level=getattr(logging, log_level, logging.INFO))
-
 app = Flask(__name__)
 
 
 def get_env_variable(var_name, default=None):
-    """
-    Gets an environment variable.
-
-    Args:
-        var_name (str): Name of the environment variable.
-        default (any, optional): Default value if the variable is not found.
-
-    Returns:
-        any: The value of the environment variable, or the default if not found.
-
-    Raises:
-        ValueError: If the environment variable is not found and no default
-                    value is provided.
-    """
     value = os.environ.get(var_name)
     if value is None:
         if default is not None:
@@ -50,7 +40,6 @@ def get_env_variable(var_name, default=None):
 
 
 def connect_to_database():
-    """Connects to the PostgreSQL database."""
     db_host = get_env_variable("POSTGRES_HOST")
     db_port = get_env_variable("POSTGRES_PORT")
     db_name = get_env_variable("POSTGRES_DB")
@@ -65,104 +54,158 @@ def connect_to_database():
             user=db_user,
             password=db_password,
         )
-        logging.info("Successfully connected to the database.")
+        logging.info("Successfully connected to PostgreSQL")
         return conn
     except psycopg2.Error as e:
-        logging.error(f"Error connecting to the database: {e}")
+        logging.error(f"Error connecting to PostgreSQL: {e}")
         return None
 
-def publish_to_mongodb(records):
+def publish_to_mongodb(records, message, transaction_id):
+    mongodb_user = get_env_variable("MONGODB_USER")
+    mongodb_password = get_env_variable("MONGODB_PASSWORD")
+    mongo_host = get_env_variable("MONGODB_HOST")
     try:
-        mongodb_user = get_env_variable("MONGODB_USER")
-        mongodb_password = get_env_variable("MONGODB_PASSWORD")
-
-        client = MongoClient(f"mongodb://{mongodb_user}:{mongodb_password}@mongodb.mongodb.svc.cluster.local:27017")
-
-        # Select your database and collection
+        client = MongoClient(f"mongodb://{mongodb_user}:{mongodb_password}@{mongo_host}")
         db = client["local"]
         collection = db["weather"]
-
         document = {
-            "id": str(uuid.uuid4()),
-            "records": 42,
-            "content": "Weather Data Pulled From Database",
-            "timestamp": datetime.utcnow()
+            "id": transaction_id,
+            "records": records,
+            "content": message,
+            "timestamp": datetime.now(UTC).isoformat()
         }
-
         collection.insert_one(document)
-        logging.info(f"Published to MongoDB: {document}")
+        logging.info("Published to MongoDB")
     except Exception as ex:
-        logging.error(f"Error publishing to MongoDB ({mongodb_user}):({mongodb_password}): {ex}")
+        logging.error(f"Error publishing to MongoDB: {ex}")
 
 
-def publish_to_elastic(records):
+def publish_to_elastic(records, message, transaction_id):
+    elastic_user = get_env_variable("ELASTIC_USER")
+    elastic_password = get_env_variable("ELASTIC_PASSWORD")
+    elastic_server = get_env_variable("ELASTIC_SERVER")
     try:
-        elastic_user = get_env_variable("ELASTIC_USER")
-        elastic_password = get_env_variable("ELASTIC_PASSWORD")
-        es = Elasticsearch("https://elasticsearch-master.elasticsearch.svc.cluster.local:9200",
+        es = Elasticsearch(elastic_server,
             basic_auth=(elastic_user, elastic_password),
             verify_certs=False  # for self-signed certs only
         )
-
         document = {
-            "id": str(uuid.uuid4()),
+            "id": transaction_id,
             "records": records,
-            "content": "Weather Data Pulled From Database",
-            "timestamp": datetime.utcnow().isoformat()  # or use datetime.now() for local time
+            "content": message,
+            "timestamp": datetime.now(UTC).isoformat()
         }
-
-        # Index the document
-        response = es.index(index="weather-inquires", id=document["id"], document=document)
-        logging.info(f"Published to Elasticsearch: {document}")
+        es.index(index="weather-inquires", id=document["id"], document=document)
+        logging.info("Published to Elasticsearch")
     except Exception as ex:
         logging.error(f"Error publishing to Elasticsearch: {ex}")
 
 
-def publish_event(records):
+def publish_to_kafka(records, message, transaction_id):
+    kafka_server = get_env_variable("KAFKA_SERVER")
     conf = {
-        'bootstrap.servers': 'kafka.kafka.svc.cluster.local:9092'
+        'bootstrap.servers': kafka_server
     }
     producer = Producer(conf)
     producer = inst.instrument_producer(producer, tracer_provider)
     topic = "test"
 
-    def delivery_report(err, msg):
+    def delivery_report(err, _):
         if err is not None:
-            logging.error(f"Delivery failed: {err}")
+            logging.error(f"Error publishing to Kafka: {err}")
         else:
-            logging.info(f"Delivered message to {msg.topic()} [{msg.partition()}]")
+            logging.info("Published to Kafka")
 
     message = {
-        "id": str(uuid.uuid4()),
+        "id": transaction_id,
         "records": records,
-        "content": "Weather Data Pulled From Database"
+        "content": message
     }
     producer.produce(topic, value=str(message), callback=delivery_report)
+    logging.info(f"Published to Kafka: {message}")
     producer.poll(0)
-
+    logging.info("Flushing Kafka producer...")
     producer.flush()
+    logging.info("Kafka producer flushed.")
 
 
-def get_latest_weather():
+def get_latest_weather(n: int, transaction_id: str):
+    cur = None
+    conn = None
     try:
-        n = random.randint(-50, 1050)
         conn = connect_to_database()
         cur = conn.cursor()
-
         cur.execute("SELECT * FROM get_latest_weather(%s)", (n,))
         results = cur.fetchall()
         column_names = [desc[0] for desc in cur.description]
         records = len(results)
-        publish_event(records)
-        publish_to_elastic(records)
-        publish_to_mongodb(records)
-        return [dict(zip(column_names, row)) for row in results]
+        message = "Weather Data Pulled From Database"
+        publish_to_kafka(records, message, transaction_id)
+        publish_to_elastic(records, message, transaction_id)
+        publish_to_mongodb(records, message, transaction_id)
+        response = [dict(zip(column_names, row)) for row in results]
     finally:
-        cur.close()
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+    return response
+
+
+def request_log(component: str, payload:dict = None ):
+    transaction_id = str(uuid.uuid4())
+    request_message = {
+        'message': 'Request',
+        'component': component,
+        'transactionId': transaction_id
+    }
+    if payload:
+        request_message['payload'] = payload
+    logging.info(request_message)
+    return transaction_id
+
+
+def response_log(transaction_id:str, component: str, return_code, payload:dict = None):
+    response_message = {
+        'message': 'Response',
+        'component': component,
+        'transactionId': transaction_id,
+        'returnCode': return_code
+    }
+    if payload:
+        response_message['payload'] = payload
+    logging.info(response_message)
 
 
 @app.route("/latest-weather")
 def latest_weather():
+    return_code = 200
+    payload = {}
+    n = request.args.get('n', default=None, type=cast(callable, int))
+    component = 'latest-weather'
+    transaction_id = request_log(component, {'n': n})
+    if not n:
+        try:
+            # Simulating a call to another service
+            url = get_env_variable("RANDOM_SERVICE_URL")
+            response = requests.get(url)
+            if response.status_code == 200:
+                n = response.json()
+                payload = get_latest_weather(n, transaction_id)
+            else:
+                payload = {"error": "Error from random service", "returnCode": response.status_code}
+        except Exception as ex:
+            payload = {"error": "Internal Server Error", "details": str(ex)}
+    response_log(transaction_id, component, return_code, payload)
+    return make_response(jsonify(payload), return_code)
+
+
+@app.route("/random")
+def latest_weather():
+    return_code = 200
+    component = 'random'
+    transaction_id = request_log(component)
     logging.info("Received request for latest weather.")
-    return jsonify(get_latest_weather())
+    n = random.randint(-50, 1050)
+    response_log(transaction_id, component, return_code, {'n': n})
+    return jsonify(n)
