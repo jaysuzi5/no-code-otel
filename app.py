@@ -202,7 +202,7 @@ def latest_weather():
 
 
 @app.route("/random")
-def random():
+def random_number():
     return_code = 200
     component = 'random'
     transaction_id = request_log(component)
