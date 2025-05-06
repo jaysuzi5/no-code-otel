@@ -141,8 +141,6 @@ def publish_to_kafka(records, message, transaction_id):
     def delivery_report(err, _):
         if err is not None:
             logging.error(f"Error publishing to Kafka: {err}")
-        else:
-            # logging.info("Published to Kafka")
 
     message = {
         "id": transaction_id,
