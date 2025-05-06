@@ -30,11 +30,11 @@ from opentelemetry.metrics import set_meter_provider
 from opentelemetry.instrumentation.system_metrics import SystemMetricsInstrumentor
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import ConsoleMetricExporter, PeriodicExportingMetricReader
-#
-# exporter = ConsoleMetricExporter()
-#
-# set_meter_provider(MeterProvider([PeriodicExportingMetricReader(exporter)]))
-# SystemMetricsInstrumentor().instrument()
+
+exporter = ConsoleMetricExporter()
+
+set_meter_provider(MeterProvider([PeriodicExportingMetricReader(exporter)]))
+SystemMetricsInstrumentor().instrument()
 #
 # # metrics are collected asynchronously
 # input("...")
@@ -53,7 +53,7 @@ from opentelemetry.sdk.metrics.export import ConsoleMetricExporter, PeriodicExpo
 
 log_level = os.getenv("APP_LOG_LEVEL", "INFO").upper()
 logging.basicConfig(level=getattr(logging, log_level, logging.INFO))
-logging.getLogger('werkzeug').setLevel(logging.ERROR)
+logging.getLogger('werkzeug').setLevel(getattr(logging, log_level, logging.INFO))
 app = Flask(__name__)
 
 
@@ -82,7 +82,7 @@ def connect_to_database():
             user=db_user,
             password=db_password,
         )
-        logging.info("Successfully connected to PostgreSQL")
+        # logging.info("Successfully connected to PostgreSQL")
         return conn
     except psycopg2.Error as e:
         logging.error(f"Error connecting to PostgreSQL: {e}")
@@ -103,7 +103,7 @@ def publish_to_mongodb(records, message, transaction_id):
             "timestamp": datetime.now(UTC).isoformat()
         }
         collection.insert_one(document)
-        logging.info("Published to MongoDB")
+        # logging.info("Published to MongoDB")
     except Exception as ex:
         logging.error(f"Error publishing to MongoDB: {ex}")
 
@@ -124,7 +124,7 @@ def publish_to_elastic(records, message, transaction_id):
             "timestamp": datetime.now(UTC).isoformat()
         }
         es.index(index="weather-inquires", id=document["id"], document=document)
-        logging.info("Published to Elasticsearch")
+        # logging.info("Published to Elasticsearch")
     except Exception as ex:
         logging.error(f"Error publishing to Elasticsearch: {ex}")
 
@@ -142,7 +142,7 @@ def publish_to_kafka(records, message, transaction_id):
         if err is not None:
             logging.error(f"Error publishing to Kafka: {err}")
         else:
-            logging.info("Published to Kafka")
+            # logging.info("Published to Kafka")
 
     message = {
         "id": transaction_id,
@@ -150,11 +150,11 @@ def publish_to_kafka(records, message, transaction_id):
         "content": message
     }
     producer.produce(topic, value=str(message), callback=delivery_report)
-    logging.info("Published to Kafka")
+    # logging.info("Published to Kafka")
     producer.poll(0)
-    logging.info("Flushing Kafka producer...")
+    # logging.info("Flushing Kafka producer...")
     producer.flush()
-    logging.info("Kafka producer flushed.")
+    # logging.info("Kafka producer flushed.")
 
 
 def get_latest_weather(n: int, transaction_id: str):
@@ -189,7 +189,7 @@ def request_log(component: str, payload:dict = None ):
     }
     if payload:
         request_message['payload'] = payload
-    logging.info(request_message)
+    # logging.info(request_message)
     return transaction_id
 
 
@@ -202,7 +202,7 @@ def response_log(transaction_id:str, component: str, return_code, payload:dict =
     }
     if payload:
         response_message['payload'] = payload
-    logging.info(response_message)
+    # logging.info(response_message)
 
 
 @app.route("/latest-weather")
