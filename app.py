@@ -40,15 +40,15 @@ SystemMetricsInstrumentor().instrument()
 # input("...")
 #
 # # to configure custom metrics
-# configuration = {
-#     "system.memory.usage": ["used", "free", "cached"],
-#     "system.cpu.time": ["idle", "user", "system", "irq"],
-#     "system.network.io": ["transmit", "receive"],
-#     "process.memory.usage": None,
-#     "process.memory.virtual": None,
-#     "process.cpu.time": ["user", "system"],
-#     "process.context_switches": ["involuntary", "voluntary"],
-# }
+configuration = {
+    "system.memory.usage": ["used", "free", "cached"],
+    "system.cpu.time": ["idle", "user", "system", "irq"],
+    "system.network.io": ["transmit", "receive"],
+    "process.memory.usage": None,
+    "process.memory.virtual": None,
+    "process.cpu.time": ["user", "system"],
+    "process.context_switches": ["involuntary", "voluntary"],
+}
 # end of System Performance
 
 log_level = os.getenv("APP_LOG_LEVEL", "INFO").upper()
@@ -82,7 +82,7 @@ def connect_to_database():
             user=db_user,
             password=db_password,
         )
-        # logging.info("Successfully connected to PostgreSQL")
+        logging.info("Successfully connected to PostgreSQL")
         return conn
     except psycopg2.Error as e:
         logging.error(f"Error connecting to PostgreSQL: {e}")
@@ -103,7 +103,7 @@ def publish_to_mongodb(records, message, transaction_id):
             "timestamp": datetime.now(UTC).isoformat()
         }
         collection.insert_one(document)
-        # logging.info("Published to MongoDB")
+        logging.info("Published to MongoDB")
     except Exception as ex:
         logging.error(f"Error publishing to MongoDB: {ex}")
 
@@ -124,7 +124,7 @@ def publish_to_elastic(records, message, transaction_id):
             "timestamp": datetime.now(UTC).isoformat()
         }
         es.index(index="weather-inquires", id=document["id"], document=document)
-        # logging.info("Published to Elasticsearch")
+        logging.info("Published to Elasticsearch")
     except Exception as ex:
         logging.error(f"Error publishing to Elasticsearch: {ex}")
 
@@ -141,7 +141,8 @@ def publish_to_kafka(records, message, transaction_id):
     def delivery_report(err, _):
         if err is not None:
             logging.error(f"Error publishing to Kafka: {err}")
-
+        else:
+            logging.info("Published to Kafka")
     message = {
         "id": transaction_id,
         "records": records,
