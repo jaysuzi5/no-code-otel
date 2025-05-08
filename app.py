@@ -1,12 +1,14 @@
 from datetime import datetime, UTC
 from flask import Flask, jsonify, request, make_response
-from typing import cast
+from faker import Faker
 import logging
+import json
 import os
-import random
+import redis
 import uuid
 import psycopg2
 import requests
+import random
 from confluent_kafka import Producer
 from elasticsearch import Elasticsearch
 from pymongo import MongoClient
@@ -18,11 +20,13 @@ from opentelemetry.trace import get_tracer_provider
 from opentelemetry.instrumentation.pymongo import PymongoInstrumentor
 from opentelemetry.instrumentation.elasticsearch import ElasticsearchInstrumentor
 from opentelemetry.instrumentation.requests import RequestsInstrumentor
+from opentelemetry.instrumentation.redis import RedisInstrumentor
 ElasticsearchInstrumentor().instrument()
 PymongoInstrumentor().instrument()
 inst = ConfluentKafkaInstrumentor()
 tracer_provider = get_tracer_provider()
 RequestsInstrumentor().instrument()
+RedisInstrumentor().instrument()
 # End of OpenTelemetry Instrumentation
 
 # System Performance
@@ -35,11 +39,6 @@ exporter = ConsoleMetricExporter()
 
 set_meter_provider(MeterProvider([PeriodicExportingMetricReader(exporter)]))
 SystemMetricsInstrumentor().instrument()
-#
-# # metrics are collected asynchronously
-# input("...")
-#
-# # to configure custom metrics
 configuration = {
     "system.memory.usage": ["used", "free", "cached"],
     "system.cpu.time": ["idle", "user", "system", "irq"],
@@ -179,6 +178,37 @@ def get_latest_weather(n: int, transaction_id: str):
     return response
 
 
+def load_redis(redis_client, user_id: str, first_name: str, last_name: str):
+    user = {
+        'userId': user_id,
+        'firstName': first_name,
+        'lastName': last_name
+    }
+    redis_client.set(user_id, json.dumps(user))
+    return user
+
+
+def check_redis(user_id: str):
+    redis_host = get_env_variable("REDIS_HOST")
+    redis_client = redis.Redis(host=redis_host, port=6379, decode_responses=True)
+    user_data = redis_client.get(user_id)
+    if not user_data:
+        fake = Faker()
+        first_name = fake.first_name()
+        last_name = fake.last_name()
+        user_data = load_redis(redis_client, user_id, first_name, last_name)
+    return user_data
+
+
+def authenticate_user(user_id: str):
+    # Random chance of 1 in 20 of not being found
+    if random.randint(1, 20) == 1:
+        return None
+    else:
+        user_data = check_redis(user_id)
+    return user_data
+
+
 def request_log(component: str, payload:dict = None ):
     transaction_id = str(uuid.uuid4())
     request_message = {
@@ -204,37 +234,59 @@ def response_log(transaction_id:str, component: str, return_code, payload:dict =
     logging.info(response_message)
 
 
-@app.route("/latest-weather")
-def latest_weather():
+@app.route("/login", methods=["POST"])
+def login():
     return_code = 200
-    payload = {}
-    n = request.args.get('n', default=None, type=cast(callable, int))
-    component = 'latest-weather'
-    transaction_id = request_log(component, {'n': n})
-    if not n:
-        try:
-            # Simulating a call to another service
-            url = get_env_variable("RANDOM_SERVICE_URL")
+    component = 'login'
+    transaction_id = None
+    try:
+        data = request.get_json()
+        user_id = data.get("userId", None)
+        payload = {
+            'userId': user_id,
+        }
+        transaction_id = request_log(component, payload)
+        if not user_id:
+            return_code = 400
+        else:
+            url = get_env_variable("AUTHENTICATION_URL")
             response = requests.get(url)
             if response.status_code == 200:
                 n = response.json()
-                payload = get_latest_weather(n, transaction_id)
-                payload = {}  # I believe this is resulting in bad logs
+                get_latest_weather(n, transaction_id)
+                payload = {} # The payload was causing some invalid logging errors
             else:
                 return_code = response.status_code
                 payload = {"error": "Error from random service", "returnCode": response.status_code}
-        except Exception as ex:
-            return_code = 500
-            payload = {"error": "Internal Server Error", "details": str(ex)}
+    except Exception as ex:
+        return_code = 500
+        payload = {"error": "Internal Server Error", "details": str(ex)}
     response_log(transaction_id, component, return_code, payload)
     return make_response(jsonify(payload), return_code)
 
 
-@app.route("/random")
-def random_number():
+@app.route("/authenticate", methods=["POST"])
+def authenticate():
     return_code = 200
-    component = 'random'
-    transaction_id = request_log(component)
-    n = random.randint(-50, 1050)
-    response_log(transaction_id, component, return_code, {'n': n})
-    return jsonify(n)
+    component = 'authenticate'
+    transaction_id = None
+    try:
+        data = request.get_json()
+        user_id = data.get("userId", None)
+        payload = {
+            'userId': user_id,
+        }
+        transaction_id = request_log(component, payload)
+        if not user_id:
+            return_code = 400
+        else:
+            user = authenticate_user(user_id)
+            if not user:
+                return_code = 401
+            else:
+                payload = user
+    except Exception as ex:
+        return_code = 500
+        payload = {"error": "Internal Server Error", "details": str(ex)}
+    response_log(transaction_id, component, return_code, payload)
+    return make_response(jsonify(payload), return_code)
