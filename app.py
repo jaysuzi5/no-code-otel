@@ -250,14 +250,12 @@ def login():
             return_code = 400
         else:
             url = get_env_variable("AUTHENTICATION_URL")
-            response = requests.get(url)
+            response = requests.post(url, json=payload)
             if response.status_code == 200:
-                n = response.json()
-                get_latest_weather(n, transaction_id)
-                payload = {} # The payload was causing some invalid logging errors
+                payload = response.json()
             else:
                 return_code = response.status_code
-                payload = {"error": "Error from random service", "returnCode": response.status_code}
+                payload = {"error": "Error from authenticate service", "returnCode": response.status_code}
     except Exception as ex:
         return_code = 500
         payload = {"error": "Internal Server Error", "details": str(ex)}
