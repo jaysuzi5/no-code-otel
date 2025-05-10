@@ -179,15 +179,66 @@ def get_latest_weather(n: int, transaction_id: str):
             conn.close()
     return response
 
+def member_search(user_id: str):
+    user = None
+    conn = None
+    cursor = None
+    try:
+        conn = connect_to_database()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT user_id, first_name, last_name 
+            FROM members 
+            WHERE user_id = %s
+        """, (user_id,))
+
+        result = cursor.fetchone()
+        if result:
+            user = {
+                'userId': user_id,
+                'firstName': result[1],
+                'lastName': result[2]
+            }
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+    return user
+
+def member_create(user_id: str):
+    conn = None
+    cursor = None
+    try:
+        conn = connect_to_database()
+        cursor = conn.cursor()
+        # For demo purposes we will just make up a member
+        fake = Faker()
+        first_name = fake.first_name()
+        last_name = fake.last_name()
+        user = {
+            'userId': user_id,
+            'firstName': first_name,
+            'lastName': last_name
+        }
+
+        cursor.execute("INSERT INTO members (user_id, first_name, last_name) VALUES (%s, %s, %s);",
+                       (user['userId'], user['firstName'], user['lastName']))
+        conn.commit()
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+    return user
+
+
 def member_service(user_id):
-    fake = Faker()
-    first_name = fake.first_name()
-    last_name = fake.last_name()
-    user = {
-        'userId': user_id,
-        'firstName': first_name,
-        'lastName': last_name
-    }
+    user = member_search(user_id)
+    if not user:
+        user = member_create(user_id)
     return user
 
 
